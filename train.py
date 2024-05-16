@@ -72,13 +72,6 @@ def train(hyp, opt, device, tb_writer=None):
         model = Model(opt.cfg, ch=3, nc=nc).to(device)# create
         #model = model.to(memory_format=torch.channels_last)  # create
 
-    nofreeze = [f'model.{x}.' for x in [36, 40, 44, 48, 52, 53]]  # parameter names to nofreeze (full or partial)
-    for k, v in model.named_parameters():
-        v.requires_grad = False  # freeze all layers
-        if any(x in k for x in nofreeze):
-            print('training %s' % k)
-            v.requires_grad = True
-
     # Optimizer
     nbs = 64  # nominal batch size
     accumulate = max(round(nbs / total_batch_size), 1)  # accumulate loss before optimizing
@@ -131,7 +124,7 @@ def train(hyp, opt, device, tb_writer=None):
             epochs += ckpt['epoch']  # finetune additional epochs
 
         del ckpt, state_dict
-
+    
     # Image sizes
     gs = int(max(model.stride))  # grid size (max stride)
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
@@ -259,7 +252,7 @@ def train(hyp, opt, device, tb_writer=None):
 
             # Autocast
             with amp.autocast(enabled=cuda):
-                # Forward
+                # Forward                
                 pred = model(imgs)
                 #pred = model(imgs.to(memory_format=torch.channels_last))
 

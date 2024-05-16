@@ -10,26 +10,16 @@ import torch
 import torch.backends.cudnn as cudnn
 from numpy import random
 
-from utils.google_utils import attempt_load
+from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import (
-    check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, strip_optimizer)
-from utils.plots import plot_one_box
+    check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, plot_one_box, strip_optimizer)
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
-from models.models import *
-from utils.datasets import *
-from utils.general import *
-
-def load_classes(path):
-    # Loads *.names file at 'path'
-    with open(path, 'r') as f:
-        names = f.read().split('\n')
-    return list(filter(None, names))  # filter removes empty strings (such as last line)
 
 def detect(save_img=False):
-    out, source, weights, view_img, save_txt, imgsz, cfg, names = \
-        opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, opt.cfg, opt.names
+    out, source, weights, view_img, save_txt, imgsz = \
+        opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize
@@ -40,14 +30,8 @@ def detect(save_img=False):
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
     # Load model
-    model = Darknet(cfg, imgsz).cuda()
-    try:
-        model.load_state_dict(torch.load(weights[0], map_location=device)['model'])
-        #model = attempt_load(weights, map_location=device)  # load FP32 model
-        #imgsz = check_img_size(imgsz, s=model.stride.max())  # check img_size
-    except:
-        load_darknet_weights(model, weights[0])
-    model.to(device).eval()
+    model = attempt_load(weights, map_location=device)  # load FP32 model
+    imgsz = check_img_size(imgsz, s=model.stride.max())  # check img_size
     if half:
         model.half()  # to FP16
 
@@ -66,10 +50,10 @@ def detect(save_img=False):
         dataset = LoadStreams(source, img_size=imgsz)
     else:
         save_img = True
-        dataset = LoadImages(source, img_size=imgsz, auto_size=64)
+        dataset = LoadImages(source, img_size=imgsz)
 
     # Get names and colors
-    names = load_classes(names)
+    names = model.module.names if hasattr(model, 'module') else model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
 
     # Run inference
@@ -123,8 +107,8 @@ def detect(save_img=False):
                             f.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
 
                     if save_img or view_img:  # Add bbox to image
-                        label = '%s %.2f' % (names[int(cls)], conf)
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                        label = '%s' % (names[int(cls)])
+                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=2)
 
             # Print time (inference + NMS)
             print('%sDone. (%.3fs)' % (s, t2 - t1))
@@ -162,7 +146,7 @@ def detect(save_img=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='yolov4-csp.pt', help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default='yolov4-p5.pt', help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
@@ -175,8 +159,6 @@ if __name__ == '__main__':
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--cfg', type=str, default='models/yolov4-csp.cfg', help='*.cfg path')
-    parser.add_argument('--names', type=str, default='data/coco.names', help='*.cfg path')
     opt = parser.parse_args()
     print(opt)
 
